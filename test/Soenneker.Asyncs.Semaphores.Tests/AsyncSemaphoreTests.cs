@@ -17,7 +17,6 @@ public sealed class AsyncSemaphoreTests
         ValueTask<SemaphoreLease> pending = semaphore.Acquire();
 
         await Assert.That(pending.IsCompleted).IsFalse();
-        first.Dispose();
 
         using SemaphoreLease second = await pending;
         await Assert.That(semaphore.CurrentCount).IsEqualTo(0);
