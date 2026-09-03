@@ -37,7 +37,8 @@ public sealed class AsyncSemaphore : IAsyncSemaphore
         ArgumentOutOfRangeException.ThrowIfNegative(initialCount);
 
         if (initialCount > maxCount)
-            throw new ArgumentOutOfRangeException(nameof(initialCount), initialCount, "The initial count cannot exceed the maximum count.");
+            throw new ArgumentOutOfRangeException(nameof(initialCount), initialCount,
+                "The initial count cannot exceed the maximum count.");
 
         _state = (uint)initialCount;
         MaxCount = maxCount;
@@ -368,8 +369,7 @@ public sealed class AsyncSemaphore : IAsyncSemaphore
 
                 if (waiter is null)
                 {
-                    while (!_waiterQueue.TryDequeueSpinUntilLinked(out waiter) &&
-                           (waiter = TakeFrontWaiter()) is null)
+                    while (!_waiterQueue.TryDequeueSpinUntilLinked(out waiter) && (waiter = TakeFrontWaiter()) is null)
                         spinner.SpinOnce();
                 }
 
