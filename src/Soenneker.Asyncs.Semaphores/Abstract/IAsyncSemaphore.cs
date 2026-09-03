@@ -31,7 +31,7 @@ public interface IAsyncSemaphore
     /// <param name="cancellationToken">A token that cancels the wait for a permit.</param>
     /// <returns>An owning lease that releases the permit when disposed.</returns>
     /// <exception cref="OperationCanceledException">The cancellation token was canceled before a permit was acquired.</exception>
-    ValueTask<SemaphoreLease> Acquire(CancellationToken cancellationToken = default);
+    ValueTask<SemaphoreLease> Acquire(CancellationToken cancellationToken);
 
     /// <summary>
     /// Attempts to acquire one permit without waiting.

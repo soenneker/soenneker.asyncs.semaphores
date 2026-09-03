@@ -77,7 +77,7 @@ public sealed class AsyncSemaphore : IAsyncSemaphore
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ValueTask<SemaphoreLease> Acquire(CancellationToken cancellationToken = default)
+    public ValueTask<SemaphoreLease> Acquire(CancellationToken cancellationToken)
     {
         if (cancellationToken.IsCancellationRequested)
             return ValueTask.FromCanceled<SemaphoreLease>(cancellationToken);
