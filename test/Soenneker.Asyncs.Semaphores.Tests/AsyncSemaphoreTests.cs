@@ -12,13 +12,15 @@ public sealed class AsyncSemaphoreTests
     public async Task Acquire_should_wait_until_a_lease_is_disposed()
     {
         var semaphore = new AsyncSemaphore(1);
-        using SemaphoreLease first = await semaphore.Acquire();
+        SemaphoreLease first = await semaphore.Acquire();
 
         ValueTask<SemaphoreLease> pending = semaphore.Acquire();
 
         await Assert.That(pending.IsCompleted).IsFalse();
 
-        using SemaphoreLease second = await pending;
+        first.Dispose();
+
+        using SemaphoreLease second = await pending.AsTask().WaitAsync(TimeSpan.FromSeconds(5));
         await Assert.That(semaphore.CurrentCount).IsEqualTo(0);
     }
 
