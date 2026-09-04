@@ -7,6 +7,7 @@ using Soenneker.Queues.Intrusive.Abstractions;
 
 namespace Soenneker.Asyncs.Semaphores;
 
+/// <inheritdoc cref="IIntrusiveNode{Waiter}" />
 internal sealed class Waiter : IValueTaskSource<SemaphoreLease>, IIntrusiveNode<Waiter>
 {
     private const int _completedBit = 1 << 16;

@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 
 namespace Soenneker.Asyncs.Semaphores;
 
+/// <inheritdoc cref="IAsyncSemaphore" />
 public sealed class AsyncSemaphore : IAsyncSemaphore
 {
     private const long _countMask = uint.MaxValue;
