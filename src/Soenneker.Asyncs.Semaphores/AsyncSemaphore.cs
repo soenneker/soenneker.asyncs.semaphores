@@ -1,5 +1,4 @@
 using Soenneker.Asyncs.Semaphores.Abstract;
-using Soenneker.Queues.Intrusive.ValueMpsc;
 using System;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -7,7 +6,6 @@ using System.Threading.Tasks;
 
 namespace Soenneker.Asyncs.Semaphores;
 
-/// <inheritdoc cref="IAsyncSemaphore" />
 public sealed class AsyncSemaphore : IAsyncSemaphore
 {
     private const long _countMask = uint.MaxValue;
@@ -17,7 +15,7 @@ public sealed class AsyncSemaphore : IAsyncSemaphore
     private long _state;
     private int _useOverflowQueue;
     private Waiter? _frontWaiter;
-    private ValueIntrusiveMpscReclaimingQueue<Waiter> _waiterQueue;
+    private WaiterQueue? _waiterQueue;
 
     /// <summary>
     /// Creates a semaphore whose initial and maximum permit counts are both <paramref name="count"/>.
@@ -43,10 +41,6 @@ public sealed class AsyncSemaphore : IAsyncSemaphore
 
         _state = (uint)initialCount;
         MaxCount = maxCount;
-
-        Waiter stub = Waiter.Rent();
-        stub.Next = null;
-        _waiterQueue = new ValueIntrusiveMpscReclaimingQueue<Waiter>(stub);
     }
 
     public int CurrentCount
@@ -138,7 +132,7 @@ public sealed class AsyncSemaphore : IAsyncSemaphore
             Interlocked.CompareExchange(ref _frontWaiter, waiter, null) is not null)
         {
             Volatile.Write(ref _useOverflowQueue, 1);
-            _waiterQueue.Enqueue(waiter);
+            (Volatile.Read(ref _waiterQueue) ?? CreateWaiterQueue()).Queue.Enqueue(waiter);
         }
     }
 
@@ -370,16 +364,18 @@ public sealed class AsyncSemaphore : IAsyncSemaphore
 
                 if (waiter is null)
                 {
-                    while (!_waiterQueue.TryDequeueSpinUntilLinked(out waiter) && (waiter = TakeFrontWaiter()) is null)
+                    while (!TryDequeueOverflow(out waiter) && (waiter = TakeFrontWaiter()) is null)
                         spinner.SpinOnce();
                 }
 
-                if (waiter.TryGrant(this))
+                if (waiter!.TryGrant(this))
                     continue;
 
                 waiter.MarkDequeued();
-                IncrementCountOnly();
-                remaining++;
+                // A canceled claim only needs a replacement waiter while an
+                // unassigned waiter remains. Otherwise restore an available permit.
+                if (IncrementCountOnly() <= 0)
+                    remaining++;
             }
 
             long state = Volatile.Read(ref _state);
@@ -404,7 +400,7 @@ public sealed class AsyncSemaphore : IAsyncSemaphore
         }
     }
 
-    private void IncrementCountOnly()
+    private int IncrementCountOnly()
     {
         long state = Volatile.Read(ref _state);
 
@@ -413,7 +409,7 @@ public sealed class AsyncSemaphore : IAsyncSemaphore
             long observed = Interlocked.CompareExchange(ref _state, WithCount(state, GetCount(state) + 1), state);
 
             if (observed == state)
-                return;
+                return GetCount(state) + 1;
 
             state = observed;
         }
@@ -422,12 +418,34 @@ public sealed class AsyncSemaphore : IAsyncSemaphore
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private Waiter? TakeFrontWaiter()
     {
-        Waiter? waiter = Volatile.Read(ref _frontWaiter);
+        // Overflow handoffs usually have no front waiter. Avoid taking write
+        // ownership of the state cache line for an already-empty slot.
+        if (Volatile.Read(ref _frontWaiter) is null)
+            return null;
 
-        if (waiter is not null)
-            Volatile.Write(ref _frontWaiter, null);
+        return Interlocked.Exchange(ref _frontWaiter, null);
+    }
 
-        return waiter;
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private WaiterQueue CreateWaiterQueue()
+    {
+        WaiterQueue? queue = Volatile.Read(ref _waiterQueue);
+        if (queue is not null)
+            return queue;
+
+        var created = new WaiterQueue();
+        return Interlocked.CompareExchange(ref _waiterQueue, created, null) ?? created;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool TryDequeueOverflow(out Waiter? waiter)
+    {
+        WaiterQueue? queue = Volatile.Read(ref _waiterQueue);
+        if (queue is not null)
+            return queue.Queue.TryDequeueSpinUntilLinked(out waiter);
+
+        waiter = null;
+        return false;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
