@@ -43,6 +43,6 @@
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="Soenneker.Queues.Intrusive.ValueMpsc" Version="4.0.36" />
+      <PackageReference Include="Soenneker.Queues.Intrusive.ValueMpsc" Version="4.0.38" />
     </ItemGroup>
 </Project>
