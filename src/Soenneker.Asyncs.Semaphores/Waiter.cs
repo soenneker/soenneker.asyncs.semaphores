@@ -7,7 +7,6 @@ using Soenneker.Queues.Intrusive.Abstractions;
 
 namespace Soenneker.Asyncs.Semaphores;
 
-/// <inheritdoc cref="IIntrusiveNode{Waiter}" />
 internal sealed class Waiter : IValueTaskSource<SemaphoreLease>, IIntrusiveNode<Waiter>
 {
     private const int _completedBit = 1 << 16;
@@ -15,8 +14,6 @@ internal sealed class Waiter : IValueTaskSource<SemaphoreLease>, IIntrusiveNode<
     private const int _dequeuedBit = 2;
     [ThreadStatic]
     private static Waiter? _localPool;
-
-    private static readonly Action<object?> _cancelCallback = static state => ((Waiter)state!).Cancel();
 
     private int _state;
     private int _reclamationState;
@@ -82,7 +79,7 @@ internal sealed class Waiter : IValueTaskSource<SemaphoreLease>, IIntrusiveNode<
         }
 
         _cancellationToken = cancellationToken;
-        _registration = cancellationToken.UnsafeRegister(_cancelCallback, this);
+        _registration = cancellationToken.UnsafeRegister(static state => ((Waiter)state!).Cancel(), this);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
