@@ -9,7 +9,7 @@ namespace Soenneker.Asyncs.Semaphores.Tests;
 public sealed class AsyncSemaphoreTests
 {
     [Test]
-    public async Task Acquire_should_wait_until_a_lease_is_disposed()
+    public async ValueTask Acquire_should_wait_until_a_lease_is_disposed()
     {
         var semaphore = new AsyncSemaphore(1);
         SemaphoreLease first = await semaphore.Acquire();
@@ -25,7 +25,7 @@ public sealed class AsyncSemaphoreTests
     }
 
     [Test]
-    public async Task Lease_disposal_should_be_idempotent()
+    public async ValueTask Lease_disposal_should_be_idempotent()
     {
         var semaphore = new AsyncSemaphore(1);
         SemaphoreLease lease = await semaphore.Acquire();
@@ -37,7 +37,7 @@ public sealed class AsyncSemaphoreTests
     }
 
     [Test]
-    public async Task TryAcquire_should_not_wait()
+    public async ValueTask TryAcquire_should_not_wait()
     {
         var semaphore = new AsyncSemaphore(1);
 
@@ -49,7 +49,7 @@ public sealed class AsyncSemaphoreTests
     }
 
     [Test]
-    public async Task Acquire_should_observe_cancellation()
+    public async ValueTask Acquire_should_observe_cancellation()
     {
         var semaphore = new AsyncSemaphore(0, 1);
         using var cancellation = new CancellationTokenSource();
@@ -61,7 +61,7 @@ public sealed class AsyncSemaphoreTests
     }
 
     [Test]
-    public async Task Release_should_make_a_permit_available()
+    public async ValueTask Release_should_make_a_permit_available()
     {
         var semaphore = new AsyncSemaphore(0, 2);
         ValueTask<SemaphoreLease> pending = semaphore.Acquire();
@@ -75,7 +75,7 @@ public sealed class AsyncSemaphoreTests
     }
 
     [Test]
-    public async Task Concurrent_releases_should_wake_every_waiter()
+    public async ValueTask Concurrent_releases_should_wake_every_waiter()
     {
         const int permitCount = 64;
         var semaphore = new AsyncSemaphore(0, permitCount);
@@ -97,7 +97,7 @@ public sealed class AsyncSemaphoreTests
     }
 
     [Test]
-    public async Task Canceled_waiter_should_not_consume_a_permit()
+    public async ValueTask Canceled_waiter_should_not_consume_a_permit()
     {
         var semaphore = new AsyncSemaphore(0, 1);
         using var cancellation = new CancellationTokenSource();
@@ -130,7 +130,7 @@ public sealed class AsyncSemaphoreTests
     }
 
     [Test]
-    public async Task Cancellation_and_release_races_should_preserve_the_permit()
+    public async ValueTask Cancellation_and_release_races_should_preserve_the_permit()
     {
         var semaphore = new AsyncSemaphore(1);
 
@@ -156,7 +156,7 @@ public sealed class AsyncSemaphoreTests
     }
 
     [Test]
-    public async Task Batch_release_should_skip_canceled_waiters_without_losing_handoffs()
+    public async ValueTask Batch_release_should_skip_canceled_waiters_without_losing_handoffs()
     {
         const int activeCount = 128;
         var semaphore = new AsyncSemaphore(0, activeCount);
@@ -190,7 +190,7 @@ public sealed class AsyncSemaphoreTests
     }
 
     [Test]
-    public async Task Parallel_handoffs_should_not_lose_permits()
+    public async ValueTask Parallel_handoffs_should_not_lose_permits()
     {
         var semaphore = new AsyncSemaphore(1);
 
@@ -208,7 +208,7 @@ public sealed class AsyncSemaphoreTests
     }
 
     [Test]
-    public async Task Repeated_parallel_batches_should_not_lose_permits()
+    public async ValueTask Repeated_parallel_batches_should_not_lose_permits()
     {
         var semaphore = new AsyncSemaphore(1);
         var completedBatches = 0;

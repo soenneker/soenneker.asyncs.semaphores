@@ -11,7 +11,7 @@ public sealed class SemaphoreRegressionTests
     [Arguments(1)]
     [Arguments(2)]
     [Arguments(32)]
-    public async Task Releasing_an_all_canceled_queue_restores_permits(int count)
+    public async ValueTask Releasing_an_all_canceled_queue_restores_permits(int count)
     {
         var semaphore = new AsyncSemaphore(0, count);
         using var cancellation = new CancellationTokenSource();
@@ -31,7 +31,7 @@ public sealed class SemaphoreRegressionTests
     }
 
     [Test]
-    public async Task Multiple_permits_never_grant_one_waiter_twice()
+    public async ValueTask Multiple_permits_never_grant_one_waiter_twice()
     {
         const int permits = 4;
         var semaphore = new AsyncSemaphore(permits);
