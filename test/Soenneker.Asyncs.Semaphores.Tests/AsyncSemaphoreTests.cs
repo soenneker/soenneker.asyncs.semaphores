@@ -9,26 +9,26 @@ namespace Soenneker.Asyncs.Semaphores.Tests;
 public sealed class AsyncSemaphoreTests
 {
     [Test]
-    public async ValueTask Acquire_should_wait_until_a_lease_is_disposed()
+    public async ValueTask Acquire_should_wait_until_a_lease_is_disposed(CancellationToken cancellationToken)
     {
         var semaphore = new AsyncSemaphore(1);
-        SemaphoreLease first = await semaphore.Acquire();
+        SemaphoreLease first = await semaphore.Acquire(cancellationToken: cancellationToken);
 
-        ValueTask<SemaphoreLease> pending = semaphore.Acquire();
+        ValueTask<SemaphoreLease> pending = semaphore.Acquire(cancellationToken: cancellationToken);
 
         await Assert.That(pending.IsCompleted).IsFalse();
 
         first.Dispose();
 
-        using SemaphoreLease second = await pending.AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+        using SemaphoreLease second = await pending.AsTask().WaitAsync(TimeSpan.FromSeconds(5), cancellationToken: cancellationToken);
         await Assert.That(semaphore.CurrentCount).IsEqualTo(0);
     }
 
     [Test]
-    public async ValueTask Lease_disposal_should_be_idempotent()
+    public async ValueTask Lease_disposal_should_be_idempotent(CancellationToken cancellationToken)
     {
         var semaphore = new AsyncSemaphore(1);
-        SemaphoreLease lease = await semaphore.Acquire();
+        SemaphoreLease lease = await semaphore.Acquire(cancellationToken: cancellationToken);
 
         lease.Dispose();
         lease.Dispose();
@@ -37,7 +37,7 @@ public sealed class AsyncSemaphoreTests
     }
 
     [Test]
-    public async ValueTask TryAcquire_should_not_wait()
+    public async ValueTask TryAcquire_should_not_wait(CancellationToken cancellationToken)
     {
         var semaphore = new AsyncSemaphore(1);
 
@@ -49,7 +49,7 @@ public sealed class AsyncSemaphoreTests
     }
 
     [Test]
-    public async ValueTask Acquire_should_observe_cancellation()
+    public async ValueTask Acquire_should_observe_cancellation(CancellationToken cancellationToken)
     {
         var semaphore = new AsyncSemaphore(0, 1);
         using var cancellation = new CancellationTokenSource();
@@ -61,10 +61,10 @@ public sealed class AsyncSemaphoreTests
     }
 
     [Test]
-    public async ValueTask Release_should_make_a_permit_available()
+    public async ValueTask Release_should_make_a_permit_available(CancellationToken cancellationToken)
     {
         var semaphore = new AsyncSemaphore(0, 2);
-        ValueTask<SemaphoreLease> pending = semaphore.Acquire();
+        ValueTask<SemaphoreLease> pending = semaphore.Acquire(cancellationToken: cancellationToken);
 
         int previousCount = semaphore.Release();
         using SemaphoreLease lease = await pending;
@@ -75,12 +75,12 @@ public sealed class AsyncSemaphoreTests
     }
 
     [Test]
-    public async ValueTask Concurrent_releases_should_wake_every_waiter()
+    public async ValueTask Concurrent_releases_should_wake_every_waiter(CancellationToken cancellationToken)
     {
         const int permitCount = 64;
         var semaphore = new AsyncSemaphore(0, permitCount);
         Task<SemaphoreLease>[] acquisitions = Enumerable.Range(0, permitCount)
-                                                        .Select(_ => semaphore.Acquire().AsTask())
+                                                        .Select(_ => semaphore.Acquire(cancellationToken: cancellationToken).AsTask())
                                                         .ToArray();
 
         Task[] releases = Enumerable.Range(0, permitCount)
@@ -88,21 +88,21 @@ public sealed class AsyncSemaphoreTests
                                     .ToArray();
 
         await Task.WhenAll(releases);
-        SemaphoreLease[] leases = await Task.WhenAll(acquisitions).WaitAsync(TimeSpan.FromSeconds(5));
+        SemaphoreLease[] leases = await Task.WhenAll(acquisitions).WaitAsync(TimeSpan.FromSeconds(5), cancellationToken: cancellationToken);
 
         await Assert.That(semaphore.CurrentCount).IsEqualTo(0);
 
-        await Task.WhenAll(leases.Select(lease => Task.Run(lease.Dispose)));
+        await Task.WhenAll(leases.Select(lease => Task.Run(lease.Dispose, cancellationToken: cancellationToken)));
         await Assert.That(semaphore.CurrentCount).IsEqualTo(permitCount);
     }
 
     [Test]
-    public async ValueTask Canceled_waiter_should_not_consume_a_permit()
+    public async ValueTask Canceled_waiter_should_not_consume_a_permit(CancellationToken cancellationToken)
     {
         var semaphore = new AsyncSemaphore(0, 1);
         using var cancellation = new CancellationTokenSource();
         Task<SemaphoreLease> canceled = semaphore.Acquire(cancellation.Token).AsTask();
-        Task<SemaphoreLease> acquisition = semaphore.Acquire().AsTask();
+        Task<SemaphoreLease> acquisition = semaphore.Acquire(cancellationToken: cancellationToken).AsTask();
 
         cancellation.Cancel();
 
@@ -113,7 +113,7 @@ public sealed class AsyncSemaphoreTests
 
         try
         {
-            acquiredLease = await acquisition.WaitAsync(TimeSpan.FromSeconds(5));
+            acquiredLease = await acquisition.WaitAsync(TimeSpan.FromSeconds(5), cancellationToken: cancellationToken);
         }
         catch (TimeoutException exception)
         {
@@ -130,17 +130,17 @@ public sealed class AsyncSemaphoreTests
     }
 
     [Test]
-    public async ValueTask Cancellation_and_release_races_should_preserve_the_permit()
+    public async ValueTask Cancellation_and_release_races_should_preserve_the_permit(CancellationToken cancellationToken)
     {
         var semaphore = new AsyncSemaphore(1);
 
         for (var i = 0; i < 1_000; i++)
         {
-            SemaphoreLease holder = await semaphore.Acquire();
+            SemaphoreLease holder = await semaphore.Acquire(cancellationToken: cancellationToken);
             using var cancellation = new CancellationTokenSource();
             ValueTask<SemaphoreLease> pending = semaphore.Acquire(cancellation.Token);
 
-            await Task.WhenAll(Task.Run(cancellation.Cancel), Task.Run(holder.Dispose));
+            await Task.WhenAll(Task.Run(cancellation.Cancel, cancellationToken: cancellationToken), Task.Run(holder.Dispose, cancellationToken: cancellationToken));
 
             try
             {
@@ -156,7 +156,7 @@ public sealed class AsyncSemaphoreTests
     }
 
     [Test]
-    public async ValueTask Batch_release_should_skip_canceled_waiters_without_losing_handoffs()
+    public async ValueTask Batch_release_should_skip_canceled_waiters_without_losing_handoffs(CancellationToken cancellationToken)
     {
         const int activeCount = 128;
         var semaphore = new AsyncSemaphore(0, activeCount);
@@ -168,13 +168,13 @@ public sealed class AsyncSemaphoreTests
         {
             cancellations[i] = new CancellationTokenSource();
             canceled[i] = semaphore.Acquire(cancellations[i].Token).AsTask();
-            active[i] = semaphore.Acquire().AsTask();
+            active[i] = semaphore.Acquire(cancellationToken: cancellationToken).AsTask();
         }
 
-        await Task.WhenAll(cancellations.Select(source => Task.Run(source.Cancel)));
+        await Task.WhenAll(cancellations.Select(source => Task.Run(source.Cancel, cancellationToken: cancellationToken)));
         semaphore.Release(activeCount);
 
-        SemaphoreLease[] leases = await Task.WhenAll(active).WaitAsync(TimeSpan.FromSeconds(5));
+        SemaphoreLease[] leases = await Task.WhenAll(active).WaitAsync(TimeSpan.FromSeconds(5), cancellationToken: cancellationToken);
         await Assert.That(semaphore.CurrentCount).IsEqualTo(0);
 
         foreach (Task<SemaphoreLease> task in canceled)
@@ -190,7 +190,7 @@ public sealed class AsyncSemaphoreTests
     }
 
     [Test]
-    public async ValueTask Parallel_handoffs_should_not_lose_permits()
+    public async ValueTask Parallel_handoffs_should_not_lose_permits(CancellationToken cancellationToken)
     {
         var semaphore = new AsyncSemaphore(1);
 
@@ -198,24 +198,24 @@ public sealed class AsyncSemaphoreTests
         {
             for (var i = 0; i < 100_000; i++)
             {
-                using SemaphoreLease lease = await semaphore.Acquire();
+                using SemaphoreLease lease = await semaphore.Acquire(cancellationToken: cancellationToken);
                 await Task.Yield();
             }
         }
 
-        await Task.WhenAll(Worker(), Worker(), Worker(), Worker()).WaitAsync(TimeSpan.FromSeconds(10));
+        await Task.WhenAll(Worker(), Worker(), Worker(), Worker()).WaitAsync(TimeSpan.FromSeconds(10), cancellationToken: cancellationToken);
         await Assert.That(semaphore.CurrentCount).IsEqualTo(1);
     }
 
     [Test]
-    public async ValueTask Repeated_parallel_batches_should_not_lose_permits()
+    public async ValueTask Repeated_parallel_batches_should_not_lose_permits(CancellationToken cancellationToken)
     {
         var semaphore = new AsyncSemaphore(1);
         var completedBatches = 0;
 
         async Task Worker()
         {
-            using SemaphoreLease lease = await semaphore.Acquire();
+            using SemaphoreLease lease = await semaphore.Acquire(cancellationToken: cancellationToken);
             await Task.Yield();
         }
 
@@ -230,7 +230,7 @@ public sealed class AsyncSemaphoreTests
 
         try
         {
-            await RunBatches().WaitAsync(TimeSpan.FromSeconds(10));
+            await RunBatches().WaitAsync(TimeSpan.FromSeconds(10), cancellationToken: cancellationToken);
         }
         catch (TimeoutException exception)
         {

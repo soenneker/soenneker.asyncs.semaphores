@@ -11,7 +11,7 @@ public sealed class SemaphoreRegressionTests
     [Arguments(1)]
     [Arguments(2)]
     [Arguments(32)]
-    public async ValueTask Releasing_an_all_canceled_queue_restores_permits(int count)
+    public async ValueTask Releasing_an_all_canceled_queue_restores_permits(int count, CancellationToken cancellationToken)
     {
         var semaphore = new AsyncSemaphore(0, count);
         using var cancellation = new CancellationTokenSource();
@@ -20,7 +20,7 @@ public sealed class SemaphoreRegressionTests
         foreach (Task<SemaphoreLease> task in pending)
             await Assert.That(async () => await task).Throws<OperationCanceledException>();
 
-        await Task.Run(() => semaphore.Release(count)).WaitAsync(TimeSpan.FromSeconds(5));
+        await Task.Run(() => semaphore.Release(count)).WaitAsync(TimeSpan.FromSeconds(5), cancellationToken: cancellationToken);
         await Assert.That(semaphore.CurrentCount).IsEqualTo(count);
         var leases = new SemaphoreLease[count];
         for (int i = 0; i < count; i++)
@@ -31,7 +31,7 @@ public sealed class SemaphoreRegressionTests
     }
 
     [Test]
-    public async ValueTask Multiple_permits_never_grant_one_waiter_twice()
+    public async ValueTask Multiple_permits_never_grant_one_waiter_twice(CancellationToken cancellationToken)
     {
         const int permits = 4;
         var semaphore = new AsyncSemaphore(permits);
@@ -40,13 +40,13 @@ public sealed class SemaphoreRegressionTests
         {
             for (int i = 0; i < 5000; i++)
             {
-                using SemaphoreLease lease = await semaphore.Acquire();
+                using SemaphoreLease lease = await semaphore.Acquire(cancellationToken: cancellationToken);
                 if (Interlocked.Increment(ref holders) > permits)
                     Interlocked.Increment(ref violations);
                 await Task.Yield();
                 Interlocked.Decrement(ref holders);
             }
-        }))).WaitAsync(TimeSpan.FromSeconds(15));
+        }, cancellationToken: cancellationToken))).WaitAsync(TimeSpan.FromSeconds(15), cancellationToken: cancellationToken);
         await Assert.That(violations).IsEqualTo(0);
         await Assert.That(semaphore.CurrentCount).IsEqualTo(permits);
     }
