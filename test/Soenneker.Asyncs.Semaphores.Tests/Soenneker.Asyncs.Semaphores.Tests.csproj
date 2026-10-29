@@ -8,7 +8,7 @@
         <IsPackable>false</IsPackable>
     </PropertyGroup>
 
-    <ItemGroup><PackageReference Include="TUnit" Version="1.76.28" />
+    <ItemGroup><PackageReference Include="TUnit" Version="1.76.45" />
     </ItemGroup>
 
     <ItemGroup>
